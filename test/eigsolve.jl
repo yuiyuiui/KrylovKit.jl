@@ -385,5 +385,7 @@ end
 	p = 8 # block size
 	X1 = Matrix(qr(rand(2^18, p)).Q)
 	D, U, info = eigsolve(-mat(h), X1, 10, :SR, BlockLanczos(p))
+    @show D[1:10]
     @test count(x -> abs(x+16.0) < 1.9, D[1:10]) == 4
+    @test count(x -> abs(x+16.0) < 1e-8, D[1:10]) == 4
 end

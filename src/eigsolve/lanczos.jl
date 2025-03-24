@@ -150,3 +150,85 @@ function eigsolve(A, x₀, howmany::Int, which::Selector, alg::Lanczos;
            vectors,
            ConvergenceInfo(converged, residuals, normresiduals, numiter, numops)
 end
+
+
+function eigsolve(A, x₀, howmany::Int, which::Selector, alg::BlockLanczos; tol = 1e-10, maxiter = 200)
+	X1 = x₀
+	n = size(A, 1)
+    p = alg.block_size
+	if n % p != 0
+		error("n must be divisible by p")
+	end
+	r = ceil(Int64, n / p)
+	X = [X1]
+	M = [(X1' * A * X1 + (X1' * A * X1)') / 2]
+	AX1 = A * X1
+	R1 = AX1 - X1 * M[1]
+	X2, B1 = qr(R1)
+	X2 = Matrix(X2)
+	X2 = X2 - X1 * (X1' * X2)
+	X2 = X2 ./ sqrt.(sum(abs2.(X2), dims = 1))
+	B = [B1]
+	M2 = X2' * A * X2
+	M2 = (M2 + M2') / 2
+	push!(X, X2)
+	push!(M, M2)
+	numiter = 1
+	numops = 2  # 初始矩阵乘法次数
+	for k in 2:min(maxiter, r - 1)
+		Rk = A * X[k] - X[k] * M[k] - X[k-1] * B[k-1]'
+		Xkplus1, Bk = qr(Rk)
+		Xkplus1 = Matrix(Xkplus1)
+		for Y in X
+			Xkplus1 = Xkplus1 - Y * (Y' * Xkplus1)
+		end
+		Xkplus1 = Xkplus1 ./ sqrt.(sum(abs2.(Xkplus1), dims = 1))
+		push!(X, Xkplus1)
+		push!(B, Bk)
+		Mkplus1 = Xkplus1' * A * Xkplus1
+		Mkplus1 = (Mkplus1 + Mkplus1') / 2
+		push!(M, Mkplus1)
+		numops += 2  # 每次迭代的矩阵乘法次数
+		if norm(Bk) < tol || k == n
+			break
+		end
+		numiter += 1
+	end
+	m = length(M)
+	TDB = zeros(m * p, m * p)
+	for i in 1:m
+		TDB[i*p-p+1:i*p, i*p-p+1:i*p] = M[i]
+		if i != m
+			TDB[i*p-p+1:i*p, i*p+1:(i+1)*p] = B[i]'
+			TDB[i*p+1:(i+1)*p, i*p-p+1:i*p] = B[i]
+		end
+	end
+
+	# diagonalize TDB and return 
+	D, U = LinearAlgebra.eigen(TDB)
+	by, rev = eigsort(which)
+	p = sortperm(D; by = by, rev = rev)
+	D, U = permuteeig!(D, U, p)
+    howmany′ = min(howmany, length(D))
+	values = D[1:howmany′]
+    vectors = hcat(X...) * U[:, 1:howmany′]
+
+    # 计算残差
+    residuals = [A * v - λ * v for (v, λ) in zip(eachcol(vectors), values)]
+    normresiduals = [norm(r) for r in residuals]
+    converged = count(x -> x < tol, normresiduals)
+
+    if (converged < howmany) && alg.verbosity >= WARN_LEVEL
+        @warn """Block Lanczos eigsolve stopped without convergence after $numiter iterations:
+        * $converged eigenvalues converged
+        * norm of residuals = $(normres2string(normresiduals))
+        * number of operations = $numops"""
+    elseif alg.verbosity >= STARTSTOP_LEVEL
+        @info """Block Lanczos eigsolve finished after $numiter iterations:
+        * $converged eigenvalues converged
+        * norm of residuals = $(normres2string(normresiduals))
+        * number of operations = $numops"""
+    end
+
+    return values, vectors, ConvergenceInfo(converged, residuals, normresiduals, numiter, numops)
+end

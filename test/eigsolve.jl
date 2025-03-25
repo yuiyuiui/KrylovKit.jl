@@ -360,6 +360,7 @@ end
     @test_logs (:info,) realeigsolve(A, v, 1, :LM, Arnoldi(; tol=1e-12, verbosity=2))
 end
 
+using LinearAlgebra,KrylovKit,Test,Random,Yao
 @testset "Block Lanczos - eigsolve " begin
 	function toric_code_strings(m::Int, n::Int)
 		li = LinearIndices((m, n))

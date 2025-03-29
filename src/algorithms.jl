@@ -108,24 +108,6 @@ Use `Arnoldi` for non-symmetric or non-Hermitian linear operators.
 See also: `factorize`, `eigsolve`, `exponentiate`, `Arnoldi`, `Orthogonalizer`
 """
 struct Lanczos{O<:Orthogonalizer,S<:Real} <: KrylovAlgorithm
-    orth::O
-    krylovdim::Int
-    maxiter::Int
-    tol::S
-    eager::Bool
-    verbosity::Int
-end
-function Lanczos(;
-                 krylovdim::Int=KrylovDefaults.krylovdim[],
-                 maxiter::Int=KrylovDefaults.maxiter[],
-                 tol::Real=KrylovDefaults.tol[],
-                 orth::Orthogonalizer=KrylovDefaults.orth,
-                 eager::Bool=false,
-                 verbosity::Int=KrylovDefaults.verbosity[])
-    return Lanczos(orth, krylovdim, maxiter, tol, eager, verbosity)
-end
-
-struct BlockLanczos{O<:Orthogonalizer,S<:Real} <: KrylovAlgorithm
     block_size::Int
     orth::O
     krylovdim::Int
@@ -134,14 +116,19 @@ struct BlockLanczos{O<:Orthogonalizer,S<:Real} <: KrylovAlgorithm
     eager::Bool
     verbosity::Int
 end
-function BlockLanczos(block_size::Int;
+function Lanczos(;
+                 block_size::Int=1,
                  krylovdim::Int=KrylovDefaults.krylovdim[],
                  maxiter::Int=KrylovDefaults.maxiter[],
                  tol::Real=KrylovDefaults.tol[],
                  orth::Orthogonalizer=KrylovDefaults.orth,
                  eager::Bool=false,
                  verbosity::Int=KrylovDefaults.verbosity[])
-        return BlockLanczos(block_size, orth, krylovdim, maxiter, tol, eager, verbosity)
+    if block_size >1
+        orth = ModifiedGramSchmidt2()
+        krylovdim = typemax(Int64)
+    end
+    return Lanczos(block_size, orth, krylovdim, maxiter, tol, eager, verbosity)
 end
 
 """

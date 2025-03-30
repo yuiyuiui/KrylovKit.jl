@@ -230,6 +230,12 @@ function block_lanczos_reortho(A, x₀::AbstractMatrix{S}, howmany::Int, which::
             _res(fact, A, howmany, tol, block_size)
     end
 
+    if (fact.k * block_size > alg.krylovdim)
+        @warn "The real Krylov dimension is $(fact.k * block_size), which is larger than the maximum allowed dimension $(alg.krylovdim)."
+        # In this version we don't shrink the factorization because it might cause issues, different from the ordinary Lanczos.
+        # Why it happens remains to be investigated.
+    end
+
     if (num_converged < howmany) && verbosity >= WARN_LEVEL
         @warn """Block Lanczos eigsolve stopped without full convergence after $(fact.k) iterations:
         * $num_converged eigenvalues converged

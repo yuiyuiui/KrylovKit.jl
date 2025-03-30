@@ -124,10 +124,6 @@ function Lanczos(;
                  orth::Orthogonalizer=KrylovDefaults.orth,
                  eager::Bool=false,
                  verbosity::Int=KrylovDefaults.verbosity[])
-    if block_size >1
-        orth = ModifiedGramSchmidt2()
-        krylovdim = typemax(Int64)
-    end
     return Lanczos(block_size, orth, krylovdim, maxiter, tol, eager, verbosity)
 end
 

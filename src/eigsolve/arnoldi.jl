@@ -140,13 +140,11 @@ function schursolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi)
         * norm of residuals = $(normres2string(normresiduals))
         * number of operations = $numops"""
     end
-    return TT,
-           vectors,
-           values,
-           ConvergenceInfo(converged, residuals, normresiduals, numiter, numops)
+    return TT, vectors, values,
+        ConvergenceInfo(converged, residuals, normresiduals, numiter, numops)
 end
 
-function eigsolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi; alg_rrule=alg)
+function eigsolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi; alg_rrule = alg)
     T, U, fact, converged, numiter, numops = _schursolve(A, x₀, howmany, which, alg)
     howmany′ = howmany
     if eltype(T) <: Real && howmany < length(fact) && T[howmany + 1, howmany] != 0
@@ -181,9 +179,8 @@ function eigsolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi; alg_rrul
         * norm of residuals = $(normres2string(normresiduals))
         * number of operations = $numops"""
     end
-    return values,
-           vectors,
-           ConvergenceInfo(converged, residuals, normresiduals, numiter, numops)
+    return values, vectors,
+        ConvergenceInfo(converged, residuals, normresiduals, numiter, numops)
 end
 
 """
@@ -293,9 +290,10 @@ The return value is always of the form `vals, vecs, info = eigsolve(...)` with
     No warning is printed if not all requested eigenvalues were converged, so always check
     if `info.converged >= howmany`.
 """
-function realeigsolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi; alg_rrule=alg)
-    T, U, fact, converged, numiter, numops = _schursolve(A, RealVec(x₀), howmany, which,
-                                                         alg)
+function realeigsolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi; alg_rrule = alg)
+    T, U, fact, converged, numiter, numops = _schursolve(
+        A, RealVec(x₀), howmany, which, alg
+    )
     i = 0
     while i < howmany
         i += 1
@@ -303,7 +301,7 @@ function realeigsolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi; alg_
             if abs(T[i + 1, i]) > alg.tol && alg.verbosity >= WARN_LEVEL
                 impart = sqrt(-T[i + 1, i] * T[i, i + 1])
                 warnmsg = "2 x 2 Schur block at position $i and $(i + 1) detected, complex eigenvalues "
-                warnmsg *= "with imaginary part $impart will be ignored by setting T[i+1,i] = $(T[i+1,i]) to zero."
+                warnmsg *= "with imaginary part $impart will be ignored by setting T[i+1,i] = $(T[i + 1, i]) to zero."
                 @warn warnmsg
             end
             T[i + 1, i] = 0
@@ -346,9 +344,8 @@ function realeigsolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi; alg_
         * norm of residuals = $(normres2string(normresiduals))
         * number of operations = $numops"""
     end
-    return values,
-           vectors,
-           ConvergenceInfo(converged, residuals, normresiduals, numiter, numops)
+    return values, vectors,
+        ConvergenceInfo(converged, residuals, normresiduals, numiter, numops)
 end
 
 function _schursolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi)
@@ -361,20 +358,21 @@ function _schursolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi)
     numiter = 1
     # initialize arnoldi factorization
     iter = ArnoldiIterator(A, x₀, alg.orth)
-    fact = initialize(iter; verbosity=alg.verbosity)
+    fact = initialize(iter; verbosity = alg.verbosity)
     numops = 1
     sizehint!(fact, krylovdim)
     β = normres(fact)
     tol::eltype(β) = alg.tol
 
     # allocate storage
-    HH = fill(zero(eltype(fact)), krylovdim + 1, krylovdim)
+    HH = fill(zero(eltype(fact)), krylovdim, krylovdim)
     UU = fill(zero(eltype(fact)), krylovdim, krylovdim)
+    ff = fill(zero(eltype(fact)), krylovdim)
 
     # initialize storage
     K = length(fact) # == 1
     converged = 0
-    local T, U
+    local T, U, f
     while true
         β = normres(fact)
         K = length(fact)
@@ -389,23 +387,21 @@ function _schursolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi)
         if K == krylovdim || β <= tol || (alg.eager && K >= howmany) # process
             H = view(HH, 1:K, 1:K)
             U = view(UU, 1:K, 1:K)
-            f = view(HH, K + 1, 1:K)
+            f = view(ff, 1:K)
             copyto!(U, I)
             copyto!(H, rayleighquotient(fact))
 
             # compute dense schur factorization
             T, U, values = hschur!(H, U)
             by, rev = eigsort(which)
-            p = sortperm(values; by=by, rev=rev)
+            p = sortperm(values; by = by, rev = rev)
             T, U = permuteschur!(T, U, p)
-            f = mul!(f, view(U, K, :), β)
+            f .= conj.(view(U, K, :)) .* β
             converged = 0
             while converged < length(fact) && abs(f[converged + 1]) <= tol
                 converged += 1
             end
-            if eltype(T) <: Real &&
-               0 < converged < length(fact) &&
-               T[converged + 1, converged] != 0
+            if 0 < converged < length(fact) && !iszero(T[converged + 1, converged])
                 converged -= 1
             end
 
@@ -417,14 +413,14 @@ function _schursolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi)
         end
 
         if K < krylovdim # expand
-            fact = expand!(iter, fact; verbosity=alg.verbosity)
+            fact = expand!(iter, fact; verbosity = alg.verbosity)
             numops += 1
         else # shrink
             numiter == maxiter && break
 
             # Determine how many to keep
             keep = div(3 * krylovdim + 2 * converged, 5) # strictly smaller than krylovdim since converged < howmany <= krylovdim, at least equal to converged
-            if eltype(H) <: Real && H[keep + 1, keep] != 0
+            if !iszero(H[keep + 1, keep])
                 # we are in the middle of a 2x2 block; this cannot happen if keep == converged, so we can decrease keep
                 # however, we have to make sure that we do not end up with keep = 0
                 if keep > 1
@@ -439,30 +435,47 @@ function _schursolve(A, x₀, howmany::Int, which::Selector, alg::Arnoldi)
                 end
             end
 
-            # Restore Arnoldi form in the first keep columns
-            @inbounds for j in 1:keep
-                H[keep + 1, j] = f[j]
-            end
-            @inbounds for j in keep:-1:1
-                h, ν = householder(H, j + 1, 1:j, j)
-                H[j + 1, j] = ν
-                H[j + 1, 1:(j - 1)] .= 0
-                lmul!(h, H)
-                rmul!(view(H, 1:j, :), h')
-                rmul!(U, h')
-            end
-            copyto!(rayleighquotient(fact), H) # copy back into fact
-
-            # Update B by applying U
+            # Restore Arnoldi form in the first keep columns before shrinking
+            _restorearnoldiform!(U, H, f, keep)
+            # Copy H back into compact Hessenberg form
+            copy!(rayleighquotient(fact), H)
+            # Update the basis
             B = basis(fact)
             basistransform!(B, view(U, :, 1:keep))
-            r = residual(fact)
-            B[keep + 1] = scale!!(r, 1 / normres(fact))
-
-            # Shrink Arnoldi factorization
-            fact = shrink!(fact, keep; verbosity=alg.verbosity)
+            B[keep + 1] = scale!!(residual(fact), 1 / β)
+            # Everything is set up to shrink Arnoldi factorization
+            fact = shrink!(fact, keep; verbosity = alg.verbosity)
             numiter += 1
         end
     end
     return T, U, fact, converged, numiter, numops
+end
+
+# Input:
+# Square matrices `U` and `H` of some size `m x m`, a vector `f` of length `m` and an integer value `keep`
+# such that:
+# * there exists a general Krylov factorization of the form
+#   ``A * V * U = V * U * H + v * f'``
+#   with `V`` some orthonormal basis and `v` some unit-norm residual vector, i.e. `V'*v = 0` and `norm(v) = 1`
+# * `keep < m`
+# * `H[keep+1:m, 1:keep]` is zero (i.e. the first `keep` coordinate axis span an invariant subspace of `H`)
+#
+# Output:
+# `U` and `H` are updated in place such that a truncated Krylov factorization of size `keep` in
+# standard Arnoldi form is obtained, i.e.
+# A * V * U[:, 1:keep] = V * U[:, 1:keep] * H[1:keep, 1:keep] + H[keep+1, keep] * v * eₖ
+# with `H[1:keep, 1:keep]` in Hessenberg form and `eₖ` the unit vector along the `keep`-th coordinate axis.
+function _restorearnoldiform!(U, H, f, keep)
+    @inbounds for j in 1:keep
+        H[keep + 1, j] = conj(f[j])
+    end
+    @inbounds for j in keep:-1:1
+        h, ν = householder(H, j + 1, 1:j, j)
+        H[j + 1, j] = ν
+        H[j + 1, 1:(j - 1)] .= 0
+        lmul!(h, H)
+        rmul!(view(H, 1:j, :), h')
+        rmul!(U, h')
+    end
+    return nothing
 end

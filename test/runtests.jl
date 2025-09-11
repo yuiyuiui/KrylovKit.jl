@@ -40,6 +40,9 @@ end
     include("schursolve.jl")
     include("geneigsolve.jl")
 end
+@testset "Biorthogonal eigenvalue problems with bieigsolve" verbose = true begin
+    include("bieigsolve.jl")
+end
 @testset "Singular value problems with svdsolve" verbose = true begin
     include("svdsolve.jl")
 end
@@ -76,10 +79,10 @@ end
 println("Tests finished in $t seconds")
 
 module AquaTests
-using KrylovKit
-using Aqua
-Aqua.test_all(KrylovKit; ambiguities=false)
-# treat ambiguities special because of ambiguities between ChainRulesCore and Base
-Aqua.test_ambiguities([KrylovKit, Base, Core]; exclude=[Base.:(==)])
+    using KrylovKit
+    using Aqua
+    Aqua.test_all(KrylovKit; ambiguities = false)
+    # treat ambiguities special because of ambiguities between ChainRulesCore and Base
+    Aqua.test_ambiguities([KrylovKit, Base, Core]; exclude = [Base.:(==)])
 
 end

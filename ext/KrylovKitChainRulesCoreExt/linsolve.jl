@@ -13,6 +13,8 @@ function ChainRulesCore.rrule(config::RuleConfig,
     return (x, info), linsolve_pullback
 end
 
+# `deep_unthunk` is defined in `utilities.jl` (shared across extension files).
+
 function make_linsolve_pullback(fᴴ, b, a₀, a₁, alg_rrule, construct∂f, x, info)
     return function linsolve_pullback(X̄)
         x̄ = unthunk(X̄[1])
@@ -40,6 +42,9 @@ function make_linsolve_pullback(fᴴ, b, a₀, a₁, alg_rrule, construct∂f, x
         end
         x∂b = inner(x, ∂b)
         b∂b = inner(b, ∂b)
+        # For matrix operators we intentionally keep the (Inplaceable)Thunk form here for
+        # performance and numerical behavior; for generic operators `construct∂f` already
+        # deep-unthunks in `lin_preprocess`.
         ∂f = construct∂f(scale(∂b, -conj(a₁)))
         ∂a₀ = -x∂b
         ∂a₁ = (x∂b * conj(a₀) - b∂b) / conj(a₁)
@@ -51,9 +56,8 @@ end
 function lin_preprocess(config, f, x)
     config isa RuleConfig{>:HasReverseMode} ||
         throw(ArgumentError("`linsolve` reverse-mode AD requires AD engine that supports calling back into AD"))
-    pb = rrule_via_ad(config, f, x)[2]
     fᴴ, construct∂f_lin = let pb = rrule_via_ad(config, f, x)[2]
-        v -> unthunk(pb(v)[2]), w -> pb(w)[1]
+        v -> unthunk(pb(v)[2]), w -> deep_unthunk(pb(w)[1])
     end
     return fᴴ, construct∂f_lin
 end

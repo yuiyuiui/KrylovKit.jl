@@ -19,16 +19,13 @@ function ChainRulesCore.rrule(config::RuleConfig,
         fᴴ = adjoint(f)
     else
         fᴴ = let pb = rrule_via_ad(config, f, zerovector(x₀, complex(scalartype(x₀))))[2]
-            # Zygote may represent cotangents as (nested) thunks; materialize for downstream use.
-            v -> deep_unthunk(pb(v)[2])
+            v -> unthunk(pb(v)[2])
         end
     end
     eigsolve_pullback = make_eigsolve_pullback(config, f, fᴴ, x₀, howmany, which,
                                                alg_primal, alg_rrule, vals, vecs, info)
     return (vals, vecs, info), eigsolve_pullback
 end
-
-# `deep_unthunk` is defined in `utilities.jl` (shared across extension files).
 
 function make_eigsolve_pullback(config, f, fᴴ, x₀, howmany, which, alg_primal, alg_rrule,
                                 vals, vecs, info)
@@ -41,8 +38,8 @@ function make_eigsolve_pullback(config, f, fᴴ, x₀, howmany, which, alg_prima
 
         # Prepare inputs:
         #----------------
-        _Δvals = deep_unthunk(ΔX[1])
-        _Δvecs = deep_unthunk(ΔX[2])
+        _Δvals = unthunk(ΔX[1])
+        _Δvecs = unthunk(ΔX[2])
         # special case: propagate zero tangent
         if _Δvals isa AbstractZero && _Δvecs isa AbstractZero
             ∂f = ZeroTangent()
@@ -81,7 +78,7 @@ function make_eigsolve_pullback(config, f, fᴴ, x₀, howmany, which, alg_prima
             if n_vecs > 0
                 for i in 1:n_vecs
                     if !(_Δvecs[i] isa AbstractZero)
-                        Δvecs[i] = deep_unthunk(_Δvecs[i])
+                        Δvecs[i] = _Δvecs[i]
                     end
                 end
             end
@@ -409,10 +406,6 @@ function construct∂f_eig(config, f, vecs, ws)
 
     v = vecs[1]
     w = ws[1]
-    # Do NOT force evaluation here: some upstream rrules (incl. tests) intentionally return
-    # thunked cotangents, and Zygote's adjoints for wrappers like `Hermitian` may not accept
-    # `Thunk` inputs if forced early. We only deep-unthunk at the boundary where we must
-    # store cotangents into concrete arrays (see handling of `Δvecs` in `eigsolve_pullback`).
     ∂f = rrule_via_ad(config, f, v)[2](w)[1]
     for i in 2:length(ws)
         v = vecs[i]

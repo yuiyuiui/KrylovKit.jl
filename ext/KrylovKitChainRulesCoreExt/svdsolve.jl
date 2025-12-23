@@ -25,9 +25,9 @@ function make_svdsolve_pullback(config, f, x₀, howmany, which, alg_primal, alg
 
         # Prepare inputs:
         #----------------
-        _Δvals = deep_unthunk(ΔX[1])
-        _Δlvecs = deep_unthunk(ΔX[2])
-        _Δrvecs = deep_unthunk(ΔX[3])
+        _Δvals = unthunk(ΔX[1])
+        _Δlvecs = unthunk(ΔX[2])
+        _Δrvecs = unthunk(ΔX[3])
         # special case: propagate zero tangent
         if _Δvals isa AbstractZero && _Δlvecs isa AbstractZero && _Δrvecs isa AbstractZero
             ∂f = ZeroTangent()
@@ -70,21 +70,11 @@ function make_svdsolve_pullback(config, f, x₀, howmany, which, alg_primal, alg
         else
             Δlvecs = fill(zerovector(lvecs[1]), n)
             Δrvecs = fill(zerovector(rvecs[1]), n)
-            if n_lvecs > 0 && !(_Δlvecs isa AbstractZero)
-                for i in 1:n_lvecs
-                    Δ = _Δlvecs[i]
-                    if !(Δ isa AbstractZero)
-                        Δlvecs[i] = deep_unthunk(Δ)
-                    end
-                end
+            if n_lvecs > 0
+                Δlvecs[1:n_lvecs] .= view(_Δlvecs, 1:n_lvecs)
             end
-            if n_rvecs > 0 && !(_Δrvecs isa AbstractZero)
-                for i in 1:n_rvecs
-                    Δ = _Δrvecs[i]
-                    if !(Δ isa AbstractZero)
-                        Δrvecs[i] = deep_unthunk(Δ)
-                    end
-                end
+            if n_rvecs > 0
+                Δrvecs[1:n_rvecs] .= view(_Δrvecs, 1:n_rvecs)
             end
         end
 

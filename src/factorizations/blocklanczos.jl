@@ -293,12 +293,10 @@ This function performs a QR factorization of a block of abstract vectors using t
 It takes as input a block of abstract vectors and a tolerance parameter, which is used to determine whether a vector is considered numerically zero.
 The operation is performed in-place, transforming the input block into a block of orthonormal vectors.
 
-The function returns a matrix of size `(r, p)`, a vector of indices goodidx and a boolean flag is_draft. Here, `p` denotes the number of input vectors,
+The function returns a matrix of size `(r, p)` and a vector of indices goodidx. Here, `p` denotes the number of input vectors,
 and `r` is the numerical rank of the input block. The matrix represents the upper-triangular factor of the QR decomposition,
 restricted to the `r` linearly independent components. The vector `goodidx` contains the indices of the non-zero
 (i.e., numerically independent) vectors in the orthonormalized block.
-If a small value of β is detected, the function will carry out an additional reorthogonalization step to further ensure the input block vectors are orthonormalized.
-In such cases, is_draft is set to true to indicate potential numerical instability.
 """
 function block_qr!(block::Block, tol::Real)
     n = length(block)

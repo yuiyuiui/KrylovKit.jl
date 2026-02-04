@@ -166,8 +166,8 @@ function initialize(iter::BlockLanczosIterator;
     X₁ = Block(map(Base.Fix2(scale, one(α)), X₀.vec))
 
     # Orthogonalization of the initial block
-    _, good_idx, is_draft = block_qr!(X₁, iter.qr_tol)
-    is_draft &&
+    _, good_idx, is_drift = block_qr!(X₁, iter.qr_tol)
+    is_drift &&
         @warn "Block size may be more than operator's rank. Please decrease Krylovdim or increase qr_tol."
 
     X₁ = X₁[good_idx]
@@ -202,13 +202,13 @@ function expand!(iter::BlockLanczosIterator, state::BlockLanczosFactorization;
     Rcopy = copy(R)
 
     # Calculate the new basis and B
-    B, good_idx, is_draft = block_qr!(R, iter.qr_tol)
-    if is_draft # Prevent column subspace of R from drifting caused by an excessively small β in block_qr!
+    B, good_idx, is_drift = block_qr!(R, iter.qr_tol)
+    if is_drift # Prevent column subspace of R from drifting caused by an excessively small β in block_qr!
         block_reorthogonalize!(R, V)
-        _, good_idx, is_draft = block_qr!(R, iter.qr_tol)
+        _, good_idx, is_drift = block_qr!(R, iter.qr_tol)
         B = block_inner(R[good_idx], Rcopy) # Make sure R = XB
     end
-    is_draft &&
+    is_drift &&
         @warn "Block size may be more than operator's rank. Please decrease Krylovdim or increase qr_tol."
 
     bs_next = length(good_idx)
@@ -293,16 +293,16 @@ This function performs a QR factorization of a block of abstract vectors using t
 It takes as input a block of abstract vectors and a tolerance parameter, which is used to determine whether a vector is considered numerically zero.
 The operation is performed in-place, transforming the input block into a block of orthonormal vectors.
 
-The function returns a matrix of size `(r, p)`, a vector of indices goodidx and a boolean flag is_draft. Here, `p` denotes the number of input vectors,
+The function returns a matrix of size `(r, p)`, a vector of indices goodidx and a boolean flag is_drift. Here, `p` denotes the number of input vectors,
 and `r` is the numerical rank of the input block. The matrix represents the upper-triangular factor of the QR decomposition,
 restricted to the `r` linearly independent components. The vector `goodidx` contains the indices of the non-zero
 (i.e., numerically independent) vectors in the orthonormalized block.
 If a small value of β is detected, the function will carry out an additional reorthogonalization step to further ensure the input block vectors are orthonormalized.
-In such cases, is_draft is set to true to indicate potential numerical instability.
+In such cases, is_drift is set to true to indicate potential numerical instability.
 """
 function block_qr!(block::Block, tol::Real)
     n = length(block)
-    is_draft = false
+    is_drift = false
     idx = trues(n)
     r₁₁ = inner(block[1], block[1])
     R = zeros(typeof(r₁₁), n, n)
@@ -331,7 +331,7 @@ function block_qr!(block::Block, tol::Real)
             block[j] = scale!!(block[j], 1/β)
             # DGKS reorthogonalization
             if β < 100 * tol
-                is_draft = true
+                is_drift = true
                 for i in 1:(j - 1)
                     δ = inner(block[i], block[j])
                     R[i, j] += δ
@@ -349,5 +349,5 @@ function block_qr!(block::Block, tol::Real)
         end
     end
     good_idx = findall(idx)
-    return R[good_idx, :], good_idx, is_draft
+    return R[good_idx, :], good_idx, is_drift
 end
